@@ -1,0 +1,3 @@
+# Relatório
+
+não é cadastro.

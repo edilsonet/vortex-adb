@@ -1,0 +1,2 @@
+id,natureza,chave,nome,documento,documento_bruto,documento_mascarado,documento_invalido,uf,uf_indisponivel
+1,JURIDICA,NOME:BEECH AIRCRAFT|,TESTE BEECH AIRCRAFT,,,0,1,,0

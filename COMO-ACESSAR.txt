@@ -1,0 +1,130 @@
+================================================================
+COMO ACESSAR O ANAC-DB
+================================================================
+
+Resposta direta: sao DUAS coisas diferentes dentro do anac-db.
+
+1) O PAINEL ANALITICO (graficos, frota, concentracao, aerodromos)
+   -> NAO precisa de servidor nem de localhost. E uma pagina HTML
+   unica e estatica. Basta abrir com dois cliques.
+
+2) O REGISTRO EDITAVEL (buscar pessoa/aeronave/aerodromo e editar
+   contatos, socios, overrides com auditoria)
+   -> ESSE precisa de um servidor local, que voce LIGA com um
+   comando e DESLIGA com Ctrl+C. Ele nao fica ativo o tempo todo:
+   so roda enquanto a janela do comando estiver aberta.
+
+
+----------------------------------------------------------------
+1) PAINEL ANALITICO - sem servidor, sem localhost
+----------------------------------------------------------------
+
+O arquivo e:  C:\Users\edils\anac-db\build\dashboard.html
+
+Como abrir:
+  - Abra o Explorer, va em C:\Users\edils\anac-db\build\
+    e de dois cliques em dashboard.html.
+
+Ou pelo terminal (PowerShell ou CMD):
+  start "" "C:\Users\edils\anac-db\build\dashboard.html"
+
+Ou no Git Bash:
+  start dashboard.html   # depois de: cd /c/Users/edils/anac-db/build
+
+Por que nao precisa de servidor: o HTML tem todos os dados
+embutidos dentro dele mesmo (nada de fetch, nada de CDN, funciona
+offline). Verificado: ele abre e renderiza sozinho, sem erro no
+console. Observacao: se voce rodar o ETL de novo
+(etl/run.py + etl/build_dashboard.py), basta fechar e abrir o
+dashboard.html de novo para ver os dados novos.
+
+Se preferir ver pelo navegador por localhost, tambem funciona
+com qualquer servidor estatico, mas e opcional e desnecessario.
+
+
+----------------------------------------------------------------
+2) REGISTRO EDITAVEL - precisa ligar o servidor (e desligar)
+----------------------------------------------------------------
+
+E o modo com edicao (grava em pessoa_extra / registro_override
+com auditoria). O comando sobe o servidor em 127.0.0.1:8730.
+
+LIGAR o servidor - no PowerShell ou CMD:
+
+  cd C:\Users\edils\anac-db
+  .venv\Scripts\python.exe etl\app_server.py
+
+No Git Bash:
+
+  cd /c/Users/edils/anac-db
+  ./.venv/Scripts/python.exe etl/app_server.py
+
+Quando subir, ele imprime:
+
+  registro em http://127.0.0.1:8730
+  Ctrl+C para parar
+
+Ai voce abre no navegador:  http://127.0.0.1:8730
+
+DESLIGAR o servidor:
+  - Clique na janela do terminal e aperte Ctrl+C.
+  - Ou feche a janela do terminal (mata o processo junto).
+
+O servidor NAO fica ativo o tempo todo: ele existe somente
+enquanto aquele comando esta rodando. Fechou a janela / Ctrl+C,
+morreu. Nada fica instalado, nao inicia com o Windows, nao roda
+em segundo plano.
+
+Opcoes uteis:
+  .venv\Scripts\python.exe etl\app_server.py --porta 9000
+      (usa outra porta; acesse http://127.0.0.1:9000)
+  ... etl\app_server.py --sem-backfill
+      (pula o backfill de contatos no arranque; arranque mais rapido)
+
+Se o banco nao existir ainda, o servidor avisa:
+  "banco ausente: ... (rode etl/run.py antes)"
+Nesse caso, monte o banco primeiro:
+  .venv\Scripts\python.exe etl\run.py
+
+
+----------------------------------------------------------------
+3) PROBLEMA CONHECIDO NO WINDOWS (Git Bash): porta presa
+----------------------------------------------------------------
+
+Testado na pratica: se voce iniciar o servidor dentro de um
+script/wrapper do Git Bash e matar o processo com "kill $!",
+o processo Python do Windows pode SOBREVIVER e a porta continua
+ocupada ("127.0.0.1:8730 LISTENING"). No uso normal isso nao
+acontece: Ctrl+C na propria janela encerra direitinho.
+
+Se um dia a porta ficar presa (erro "Address already in use"
+ou pagina nao abre), descubra o PID e finalize:
+
+  No PowerShell:
+    netstat -ano | findstr :8730
+    taskkill /PID <numero_do_PID> /F
+
+  No Git Bash:
+    netstat -ano | grep :8730
+    taskkill //PID <numero_do_PID> //F
+
+Depois disso a porta fica livre e o servidor sobe de novo.
+
+
+----------------------------------------------------------------
+4) RESUMO DE 5 LINHAS
+----------------------------------------------------------------
+
+  So ver graficos?   -> dois cliques em build\dashboard.html
+                        (nao precisa de servidor)
+  Editar cadastro?   -> cd C:\Users\edils\anac-db
+                        .venv\Scripts\python.exe etl\app_server.py
+                        abrir http://127.0.0.1:8730
+  Parar o servidor?  -> Ctrl+C (ou fechar a janela)
+  Porta presa?       -> netstat -ano | findstr :8730
+                        taskkill /PID <pid> /F
+  Banco sumido?      -> .venv\Scripts\python.exe etl\run.py
+
+Verificado nesta maquina em 30/09/2026: servidor subiu, respondeu
+em /api/estado e na pagina, foi encerrado e a porta ficou livre;
+o dashboard.html abriu sem servidor e sem erros de console.

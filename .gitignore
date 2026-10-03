@@ -1,0 +1,7 @@
+# dados brutos da ANAC (fonte somente-leitura, fora do repo)
+build/
+secrets/
+*.db
+*.sqlite
+__pycache__/
+.venv/
