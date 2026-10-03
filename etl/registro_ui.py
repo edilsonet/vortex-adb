@@ -111,12 +111,20 @@ main{grid-area:conteudo}
   padding:6px 0 24px}
 .grupo{padding:14px 18px 5px;color:var(--dim);font-size:10.5px;
   text-transform:uppercase;letter-spacing:.6px;font-weight:600}
-.menu a{display:flex;justify-content:space-between;align-items:center;gap:8px;
+/* Ícone e texto juntos à esquerda, contagem encostada na direita. Com
+   `space-between` e os três filhos, o espaço sobrando se dividia entre eles e
+   o texto do meio acabava boiando no centro da linha. O `margin-left:auto` é
+   do número, que é quem deve ir para a borda. */
+.menu a{display:flex;justify-content:flex-start;align-items:center;gap:8px;
   padding:6px 18px;color:var(--txt);text-decoration:none;font-size:13.2px;
   border-left:2px solid transparent}
 .menu a:hover{background:#161b22;border-left-color:var(--a)}
 .menu a.on{background:#1a2331;border-left-color:var(--a);font-weight:600}
-.menu .n{color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums}
+.menu .ic{flex:0 0 auto}
+.menu a > span:not(.ic){min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.menu .n{margin-left:auto;color:var(--dim);font-size:11px;
+  font-variant-numeric:tabular-nums;flex:0 0 auto}
 /* Colapsado: some o rótulo e sobram só os ícones. O menu continua clicável,
    e cada item tem `title` para o mouse parado dizer o que é. */
 .app.colapsada .grupo,
@@ -345,6 +353,11 @@ const $$ = s => [...document.querySelectorAll(s)];
    links antigos e no painel; o menu aponta para `organizacao`, que junta os
    dois em uma lista só com abas. Os ícones ficam aqui porque o menu colapsado
    mostra só eles. */
+/* Todos os catálogos, com título e ícone. O quarto campo diz "não entra no
+   menu de cadastros". "Vínculos" precisa continuar aqui porque a tela ainda
+   existe (a rota, os títulos, as colunas e as puxadas de linha dependem
+   dele); o que sai é o botão do menu, que foi para Configurações. Tirar a
+   linha inteira deixaria a página sem título quando aberta por lá. */
 const CATALOGOS = [
   ['organizacao', 'Empresas e fabricantes', '&#127970;'],
   ['usuario',     'Usuários',               '&#128101;'],
@@ -353,7 +366,7 @@ const CATALOGOS = [
   ['marca',       'Marcas',                 '&#127991;'],
   ['aerodromo',   'Aeródromos',             '&#127757;'],
   ['drone',       'Drones (SISANT)',        '&#128039;'],
-  ['vinculo',     'Vínculos',               '&#128279;'],
+  ['vinculo',     'Vínculos',               '&#128279;', 'fora'],
 ];
 const TITULOS = Object.fromEntries(CATALOGOS.map(c => [c[0], c[1]]));
 
@@ -410,7 +423,7 @@ window.abrirDetalhe = function (alvo) {
       chave: alvo.chave || null, q: alvo.q || '', aba: ''});
 };
 
-const TELAS_CONFIG = ['atualizacoes', 'senha', 'conta', 'usuarios'];
+const TELAS_CONFIG = ['atualizacoes', 'vinculos', 'senha', 'conta', 'usuarios'];
 
 function lerHash() {
   const bruto = location.hash.replace(/^#\/?/, '');
@@ -442,10 +455,17 @@ async function render() {
 
 /* -------------------------------------------------------------------- menu */
 const ESTADO = {contagens: {}, atualizacao: null, editando: false, pagina: 0,
-                usuario: null, filtroMenu: '', aba: '', colapsado: false};
+                usuario: null, filtroMenu: '', aba: '', colapsado: false,
+                catTela: ''};
 
+/* "Vínculos" saiu dos cadastros: são 865 mil linhas de uma tabela de junção
+   entre aeronave e pessoa, sem identidade própria — o mesmo dado já aparece
+   como "Proprietários e operadores" no detalhe da aeronave e no da pessoa.
+   Fica aqui, em Configurações, porque é o único jeito de consultar no
+   sentido inverso (quem opera o quê) e por mês. */
 const CONFIG_MENU = [
   ['#/configuracoes/atualizacoes', 'Atualizações', '&#128337;', 'atualizacoes'],
+  ['#/configuracoes/vinculos',     'Vínculos',     '&#128279;', 'vinculos'],
   ['#/configuracoes/senha',        'Trocar senha', '&#128273;', 'senha'],
   ['#/configuracoes/conta',        'Minha conta',  '&#128100;', 'conta'],
   ['#/configuracoes/usuarios',     'Usuários',     '&#128101;', 'usuarios'],
@@ -460,7 +480,7 @@ function pintarMenu() {
       + `<a href="#/painel" class="${naPainel ? 'on' : ''}" title="Painel">`
       + `<span class="ic">&#128202;</span><span>Painel</span></a></div>` : '';
 
-  const cadastros = CATALOGOS.filter(c => casa(c[1]));
+  const cadastros = CATALOGOS.filter(c => c[3] !== 'fora' && casa(c[1]));
   if (cadastros.length) {
     h += '<div class="grupo">Cadastros</div><div class="menu">';
     for (const [cat, titulo, icone] of cadastros) {
@@ -564,8 +584,8 @@ const COLUNAS = {
               ['operacao_135', '135']],
 };
 
-async function telaLista() {
-  const cat = ROTA.cat;
+async function telaLista(catForcado) {
+  const cat = catForcado || ROTA.cat;
   $('#tela').innerHTML = `
     <h1>${esc(TITULOS[cat])}</h1>
     <p class="nota">${esc(NOTAS[cat] || '')}</p>
@@ -585,16 +605,27 @@ async function telaLista() {
 
   ESTADO.pagina = 0;
   ESTADO.itens = [];
+  ESTADO.catTela = cat;
   const busca = $('#q');
-  busca.addEventListener('keydown', e => { if (e.key === 'Enter') {
-    ir({q: busca.value.trim()}); }});
-  $('#buscar').addEventListener('click', () => ir({q: busca.value.trim()}));
-  $('#limpar').addEventListener('click', () => ir({q: ''}));
+  // Filtra enquanto se digita. O `debounce` evita uma consulta por tecla: sem
+  // ele, "PR-BEL" dispararia seis pedidos ao banco para a mesma palavra.
+  let relogio = null;
+  const filtra = () => {
+    clearTimeout(relogio);
+    relogio = setTimeout(() => ir({q: busca.value.trim()}), 320);
+  };
+  busca.addEventListener('input', filtra);
+  busca.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { clearTimeout(relogio); ir({q: busca.value.trim()}); }
+  });
+  $('#buscar').addEventListener('click', () => { clearTimeout(relogio); ir({q: busca.value.trim()}); });
+  $('#limpar').addEventListener('click', () => { clearTimeout(relogio); ir({q: ''}); });
   $('#mais').addEventListener('click', () => carregarLista(true));
   await carregarLista(false);
 }
 
 async function carregarLista(mais) {
+  const cat = ESTADO.catTela || ROTA.cat;
   if (!mais) { ESTADO.itens = []; ESTADO.pagina = 0; }
   const alvo = $('#lista');
   alvo.innerHTML = '<p class="vazio">carregando&hellip;</p>';
@@ -603,7 +634,7 @@ async function carregarLista(mais) {
   if (ROTA.aba) params.set('tipo', ROTA.aba);
   let d;
   try {
-    d = await api(`/api/catalogo/${ROTA.cat}?${params}`);
+    d = await api(`/api/catalogo/${cat}?${params}`);
   } catch (e) {
     alvo.innerHTML = `<p class="vazio" style="color:var(--erro)">${esc(e.message)}</p>`;
     return;
@@ -639,7 +670,11 @@ function desenharLista() {
       ? ' para ' + esc(ROTA.q) : ''}.</p>`;
     return;
   }
-  const cols = COLUNAS[ROTA.cat];
+  /* O catálogo vem de `ESTADO.catTela`, e não de `ROTA.cat`: a lista de
+     vínculos é aberta de Configurações, rota que não tem `cat`. E a puxada
+     da linha vai sempre pela rota de catálogo, para funcionar dos dois lados. */
+  const cat = ESTADO.catTela || ROTA.cat;
+  const cols = COLUNAS[cat];
   let h = '<table><thead><tr>'
     + cols.map(c => `<th class="${c[2] ? 'num' : ''}">${esc(c[1])}</th>`).join('')
     + '</tr></thead><tbody>';
@@ -655,7 +690,7 @@ function desenharLista() {
   }
   alvo.innerHTML = h + '</tbody></table>';
   $$('#lista tr.clicavel').forEach(tr => tr.addEventListener('click',
-    () => ir({chave: tr.dataset.chave})));
+    () => ir({tela: 'catalogo', cat: cat, chave: tr.dataset.chave})));
 }
 
 /* ------------------------------------------------------------------ detalhe */
@@ -702,7 +737,11 @@ function tituloDetalhe(d) {
     case 'modelo': return `${d.ds_modelo || ''} · ${d.marca || ''}`.trim();
     case 'marca': return d.nome;
     case 'drone': return d.codigo_aeronave;
-    case 'vinculo': return `${d.matricula} · ${d.pessoa_nome}`;
+    case 'vinculo':
+      // Sem template: quando a fonte não traz matrícula, `${null}` viraria a
+      // palavra "null" no título. Fica o que existe, e na falta de tudo, o id.
+      return [d.matricula, d.pessoa_nome].filter(Boolean).join(' · ')
+             || ('#' + (d.id || d.key));
     default: return d.nome || d.icao || '';
   }
 }
@@ -1618,6 +1657,9 @@ function telaConfig() {
   if (ROTA.cfg === 'senha') return telaTrocarSenha();
   if (ROTA.cfg === 'conta') return telaMinhaConta();
   if (ROTA.cfg === 'usuarios') return telaUsuarios();
+  // Vínculos é um catálogo, mas aberto por Configurações: reaproveita a
+  // lista comum em vez de duplicar a tela inteira.
+  if (ROTA.cfg === 'vinculos') return telaLista('vinculo');
   return telaAtualizacoes();
 }
 

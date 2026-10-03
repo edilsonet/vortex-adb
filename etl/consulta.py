@@ -275,7 +275,8 @@ CATALOGOS: dict[str, dict] = {
         "de": ("v_aerodromo_registro d "
                "LEFT JOIN redemet_aerodromo_status rs ON rs.icao = d.icao"),
         "busca": ("d.icao", "d.nome", "d.nome_ed", "d.municipio", "d.ciad"),
-        "filtros": ("uf", "tipo"),
+        # `tipo` não é filtro genérico aqui: a aba o traduz (ver `listar`).
+        "filtros": ("uf",),
         "onde": (),
         "ordem": "d.icao",
         "projeto": """d.icao AS chave, d.icao AS icao, d.ciad AS ciad,
@@ -398,10 +399,26 @@ ABAS_ORGANIZACAO = [
     ("fabricante", "Fabricantes", "fabricante"),
 ]
 
+# Abas de aeródromos. A fonte não tem "público x privado" em dois valores:
+# são quatro (`PUBLICO`, `PRIVADO`, `HELIPONTO`, `HELIDECK`), e helipontos e
+# helidecks somam 1.799 — mais que o dobro dos públicos. Caberiam todos em
+# "Uso Privativo", mas aí a aba contaria com algo que a fonte não diz que são.
+# Cada um fica na sua, e nada some. O terceiro valor é o que a consulta
+# compara com `d.tipo`.
+ABAS_AERODROMO = [
+    ("todos", "Todos", ""),
+    ("publico", "Uso Público", "PUBLICO"),
+    ("privativo", "Uso Privativo", "PRIVADO"),
+    ("heliponto", "Helipontos", "HELIPONTO"),
+    ("helideck", "Helidecks", "HELIDECK"),
+]
+
+ABAS = {"organizacao": ABAS_ORGANIZACAO, "aerodromo": ABAS_AERODROMO}
+
 
 def abas_de(nome: str) -> list[tuple[str, str, str]]:
     """Abas de um catálogo; a maioria não tem nenhuma."""
-    return ABAS_ORGANIZACAO if nome == "organizacao" else []
+    return ABAS.get(nome, [])
 
 
 def listar(conn: sqlite3.Connection, nome: str, q: dict) -> dict:
@@ -442,6 +459,19 @@ def listar(conn: sqlite3.Connection, nome: str, q: dict) -> dict:
             # ciclo. O `registro_http` já traduz `ValueError` em 400, que é o
             # status certo aqui.
             raise ValueError(f"aba desconhecida: {tipo}")
+    if tipo and nome == "aerodromo":
+        # A aba e o filtro `tipo` dividilham o mesmo parâmetro, e o filtro
+        # compararia a chave da aba ("publico") com a palavra da fonte
+        # ("PUBLICO"), zerando a lista. Por isso `tipo` saiu de `filtros`
+        # do aeródromo: só a aba filtra, e ela traduz a chave.
+        valor = next((v for c, _, v in ABAS_AERODROMO if c == tipo), None)
+        if tipo == "todos":
+            pass
+        elif valor is None:
+            raise ValueError(f"aba desconhecida: {tipo}")
+        else:
+            onde.append("d.tipo = ?")
+            args.append(valor)
 
     sql_onde = ("WHERE " + " AND ".join(onde)) if onde else ""
     total = conn.execute(f"SELECT COUNT(*) FROM {spec['de']} {sql_onde}", args).fetchone()[0]
@@ -460,8 +490,9 @@ def listar(conn: sqlite3.Connection, nome: str, q: dict) -> dict:
             "proximo": offset + len(itens) < total, "itens": itens,
             # As abas vêm do servidor: a tela não mantém uma cópia desta
             # lista, então um filtro novo não pode aparecer num lugar e
-            # faltar no outro.
-            "abas": [{"chave": c, "titulo": t, "ativa": c == (tipo or "")}
+            # faltar no outro. Sem filtro, quem está ativa é a primeira aba:
+            # comparar com `""` deixaria a lista sem aba nenhuma marcada.
+            "abas": [{"chave": c, "titulo": t, "ativa": c == (tipo or "todos")}
                      for c, t, _ in abas_de(nome)],
             "aba": tipo or ""}
 
