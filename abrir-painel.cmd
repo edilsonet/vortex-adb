@@ -15,7 +15,6 @@ set "RAIZ=%~dp0"
 set "URL=http://127.0.0.1:8730/"
 set "SITUACAO=%URL%api/sessao"
 set "PY=%RAIZ%.venv\Scripts\python.exe"
-set "LOG=%RAIZ%build\_painel.log"
 
 if not exist "%PY%" (
   echo [ERRO] Python do projeto nao encontrado:
@@ -33,14 +32,14 @@ call :vivo
 if not errorlevel 1 goto abre
 
 echo Servidor desligado. Ligando agora...
-if not exist "%RAIZ%build" mkdir "%RAIZ%build"
 
 REM As variaveis sao herdadas pelo processo filho; `start` aponta
 REM direto para o python -- sem `cmd /c` no meio, que com aspas
-REM aninhadas quebrava o arranque.
+REM aninhadas quebrava o arranque. A saida fica na janela preta, que
+REM e o lugar onde o erro aparece de verdade.
 set "PYTHONIOENCODING=utf-8"
 set "PYTHONUTF8=1"
-start "Registro ANAC - servidor (feche esta janela para parar)" /D "%RAIZ%" "%PY%" etl\app_server.py --sem-backfill > "%LOG%" 2>&1
+start "Registro ANAC - servidor (feche esta janela para parar)" /D "%RAIZ%" "%PY%" etl\app_server.py --sem-backfill
 
 echo Aguando o servidor responder...
 
@@ -69,7 +68,10 @@ exit /b 0
 :demorou
 echo.
 echo [ERRO] O servidor nao respondeu em 90 segundos.
-echo        log do arranque: %LOG%
+echo.
+echo A janela preta "Registro ANAC - servidor" mostra o motivo.
+echo Se ela ja fechou, o banco pode estar ausente; nesse caso rode:
+echo    %PY% etl\run.py
 echo.
 pause
 endlocal
