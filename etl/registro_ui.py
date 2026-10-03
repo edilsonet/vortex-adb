@@ -154,7 +154,12 @@ main{grid-area:conteudo}
 .aba button:hover{border-color:var(--a)}
 .aba button.on{background:#1a2331;border-color:var(--a);color:var(--txt);font-weight:600}
 
-main{padding:20px 28px 70px;max-width:1420px;min-width:0}
+/* Sem `max-width`: a coluna 2 é a última da linha e a grade já entrega a
+   largura inteira dela. O teto de 1420px deixava as tabelas presas numa faixa
+   estreita com uma faixa vazia à direita, enquanto a linha 1 · coluna 1
+   ocupa a coluna toda. `min-width:0` continua, para a tabela poder encolher
+   e rolar dentro da coluna em vez de esticá-la. */
+main{padding:20px 28px 70px;min-width:0}
 h1{margin:0 0 4px;font-size:20px;font-weight:660;letter-spacing:-.2px}
 h2{margin:0 0 4px;font-size:15.5px;font-weight:620}
 h3{font-size:12px;font-weight:600;color:var(--dim);text-transform:uppercase;
