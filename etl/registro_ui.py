@@ -51,35 +51,37 @@ a{color:var(--a)}
    não `<table>` porque o conteúdo não é tabular e a coluna da esquerda
    encolhe até sumir quando o usuário colapsa.
      linha 1: [logo · busca · colapsar] [usuário]
-     linha 2: [menus]                    [status da atualização]
-     linha 3: [conteúdo, ocupando as duas colunas]
-   As Tracks fixam a coluna da esquerda: sem elas, o conteúdo largo esticaria
-   a coluna do menu. */
+     linha 2: [menus]                    [páginas]
+     linha 3: [rodapé, ocupando as duas colunas]
+   A linha 2 é o miolo: menu à esquerda, páginas à direita, lado a lado, e o
+   rodapé fecha a tela embaixo. A coluna da esquerda é fixa por track, senão o
+   conteúdo largo esticaria o menu. */
 .app{display:grid;
   grid-template-columns:var(--lateral, 330px) minmax(0,1fr);
-  /* A linha 2 tem teto (`30vh`), e não `auto`: com `auto`, a grade dá à linha a
-     altura máxima do menu — 548px para 13 itens — e a linha 3, que é o
-     conteúdo, só começa depois de uma tela e meia de nada. É o defeito que
-     colocava "as páginas no rodapé". Com o teto, o menu rola dentro dos 30% e
-     o cadastro fica logo abaixo, sempre visível. */
-  grid-template-rows:auto minmax(0,42vh) minmax(0,1fr);
-  grid-template-areas:"topo usuario" "menu estado" "conteudo conteudo";
+  /* Linha 2 com `1fr` e não `auto`: as páginas é que ocupam o espaço
+     restante, e é ela que rola (`main{overflow-y:auto}`). Com `auto`, a grade
+     daria a linha a altura máxima do menu e o miolo ficaria torto. A linha 3
+     é `auto` porque o rodapé tem altura própria e curta. */
+  grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-areas:"topo usuario" "menu conteudo" "rodape rodape";
   min-height:100vh}
 .lateral{grid-area:topo}
 .menu-area{grid-area:menu;overflow-y:auto}
-/* O menu rola sozinho, e a linha 2 · coluna 2 acompanha a altura dele.
-   Sem isto, `.estado-area` ficava com a altura inteira do menu (548px) e o
-   cadastro aparecia "no rodapé", depois de uma tela e meia de vazio. A
-   `align-self` alinha o topo; o `height:100%` faz a caixa de status ocupar só a
-   altura que o menu realmente usou. */
 .menu-area{overscroll-behavior:contain;min-height:0}
-.estado-area{align-items:flex-start;align-self:stretch}
-.estado-area .estado{padding:12px 0 0}
 main{overflow-y:auto;min-height:0}
 .app{height:100vh;overflow:hidden}
 .usuario-area{grid-area:usuario}
-.estado-area{grid-area:estado}
 main{grid-area:conteudo}
+/* O rodapé é a faixa do status da atualização. Fica no fim da tela, abaixo do
+   miolo, e não na linha 2 · coluna 2 — que é das páginas. */
+.rodape{grid-area:rodape;display:flex;align-items:center;gap:14px;
+  padding:9px 18px;border-top:1px solid var(--line);background:#0b0f14;
+  min-width:0}
+/* `#estado` é só o invólucro; o `.estado` de verdade é desenhado por
+   `pintarEstado`. O `flex:1` é dele, para a contagem ficar encostada à
+   direita e a marca do app no fim. */
+.rodape #estado{flex:1 1 auto;min-width:0}
+.rodape .marca-app{color:var(--dim);font-size:12px;white-space:nowrap}
 .app.colapsada{--lateral:58px}
 
 .topo{display:flex;align-items:center;gap:10px;padding:12px 16px;
@@ -128,7 +130,7 @@ main{grid-area:conteudo}
 .app.colapsada #btn-usuario .txt{display:none}
 .app.colapsada .logo{display:none}
 
-.usuario-area,.estado-area{display:flex;align-items:center;gap:10px;
+.usuario-area{display:flex;align-items:center;gap:10px;
   padding:10px 18px;border-bottom:1px solid var(--line);background:#0b0f14;
   min-width:0}
 .usuario-area{justify-content:flex-end}
@@ -238,10 +240,9 @@ code,.cite{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;
   color:var(--warn)}
 
 /* ------------------------------------------------------------ atualização */
-/* `.sema` aqui é a caixa grande da tela de Atualizações. A da linha 2 chama-se
-   `.estado`, porque duas regras com o mesmo nome e props diferentes se anulavam
-   por ordem de Cascata — e o resultado era o painel de status herdando a borda
-   e o fundo da caixa. */
+/* `.sema` é a caixa grande da tela de Atualizações. A do rodapé chama-se
+   `.estado`, sem borda nem fundo, porque duas regras com o mesmo nome e
+   propriedades diferentes se anulariam por ordem de Cascata. */
 .sema{display:flex;align-items:center;gap:10px;padding:13px 15px;
   border:1px solid var(--line);border-radius:10px;background:var(--card);
   margin-bottom:15px}
@@ -281,9 +282,13 @@ a.btn{display:inline-flex;align-items:center;padding:7px 13px;border-radius:8px;
   border:1px solid var(--line);text-decoration:none;color:var(--txt);font-size:13px}
 a.btn:hover{border-color:var(--a)}
 @media (max-width:900px){
+  /* Empilhado, o grid tem cinco faixas, e não três: sem esta lista, a faixa do
+     usuário caía no `minmax(0,1fr)` da lista de três linhas e zerava, deixando
+     o nome e o e-mail sobrepostos ao menu. O `1fr` vai para as páginas. */
   .app{grid-template-columns:1fr;
-    grid-template-areas:"topo" "usuario" "menu" "estado" "conteudo"}
-  .topo,.menu-area,.usuario-area,.estado-area{border-right:none}
+    grid-template-rows:auto auto minmax(0,38vh) minmax(0,1fr) auto;
+    grid-template-areas:"topo" "usuario" "menu" "conteudo" "rodape"}
+  .topo,.menu-area,.usuario-area{border-right:none}
   main{padding:16px}
 }
 </style>
@@ -310,10 +315,13 @@ a.btn:hover{border-color:var(--a)}
   </div>
   <!-- linha 2 · coluna 1 -->
   <nav class="menu-area"><div id="menu"></div></nav>
-  <!-- linha 2 · coluna 2 -->
-  <div class="estado-area"><div class="sema" id="estado"></div></div>
-  <!-- linha 3 · as duas colunas -->
+  <!-- linha 2 · coluna 2: as páginas -->
   <main id="tela"></main>
+  <!-- linha 3 · as duas colunas: o rodapé -->
+  <footer class="rodape">
+    <div id="estado"></div>
+    <span class="marca-app">Registro ANAC</span>
+  </footer>
 </div>
 <div id="acesso" style="display:none"></div>
 <script>
